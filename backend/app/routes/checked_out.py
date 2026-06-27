@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -12,6 +13,7 @@ from ..security import get_current_user, require_roles
 
 
 router = APIRouter(prefix="/checked-out", tags=["checked-out"])
+logger = logging.getLogger(__name__)
 
 
 def get_or_404(db: Session, iid: int) -> CheckedOut:
@@ -27,6 +29,7 @@ def create_checkout(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin", "librarian"))] = None,
 ):
+    logger.debug("Create checkout iid=%s uid=%s", payload.iid, payload.uid)
     if payload.start_date > payload.due_date:
         raise HTTPException(status_code=400, detail="start_date must be <= due_date")
 
@@ -41,6 +44,7 @@ def create_checkout(
     db.add(checkout)
     db.commit()
     db.refresh(checkout)
+    logger.debug("Created checkout iid=%s uid=%s", checkout.iid, checkout.uid)
     return checkout
 
 
@@ -51,6 +55,7 @@ def list_checkouts(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
 ):
+    logger.debug("List checkouts skip=%s limit=%s", skip, limit)
     return db.query(CheckedOut).offset(skip).limit(limit).all()
 
 
@@ -61,6 +66,7 @@ def list_my_checkouts(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
 ):
+    logger.debug("List my checkouts user_id=%s skip=%s limit=%s", current_user.uid, skip, limit)
     return (
         db.query(CheckedOut)
         .filter(CheckedOut.uid == current_user.uid)
@@ -76,6 +82,7 @@ def get_checkout(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Get checkout iid=%s", iid)
     return get_or_404(db, iid)
 
 
@@ -86,6 +93,7 @@ def update_checkout(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Update checkout iid=%s", iid)
     checkout = get_or_404(db, iid)
 
     updates = payload.model_dump(exclude_unset=True)
@@ -100,6 +108,7 @@ def update_checkout(
 
     db.commit()
     db.refresh(checkout)
+    logger.debug("Updated checkout iid=%s", checkout.iid)
     return checkout
 
 
@@ -109,6 +118,7 @@ def delete_checkout(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Delete checkout iid=%s", iid)
     checkout = get_or_404(db, iid)
     db.delete(checkout)
     db.commit()

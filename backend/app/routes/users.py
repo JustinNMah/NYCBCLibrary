@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -12,6 +13,7 @@ from ..security import get_current_user, get_password_hash, require_roles
 
 
 router = APIRouter(prefix="/users", tags=["users"])
+logger = logging.getLogger(__name__)
 
 
 def get_or_404(db: Session, uid: int) -> User:
@@ -28,11 +30,13 @@ def list_users(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
 ):
+    logger.debug("List users skip=%s limit=%s", skip, limit)
     return db.query(User).offset(skip).limit(limit).all()
 
 
 @router.get("/me", response_model=UserResponse)
 def read_me(current_user: Annotated[User, Depends(get_current_user)]):
+    logger.debug("Read current user id=%s", current_user.uid)
     return current_user
 
 
@@ -42,6 +46,7 @@ def get_user(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Get user id=%s", uid)
     return get_or_404(db, uid)
 
 
@@ -52,6 +57,7 @@ def update_user(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Update user id=%s", uid)
     user = get_or_404(db, uid)
     updates = payload.model_dump(exclude_unset=True)
 
@@ -72,6 +78,7 @@ def delete_user(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Delete user id=%s", uid)
     user = get_or_404(db, uid)
     db.delete(user)
     db.commit()

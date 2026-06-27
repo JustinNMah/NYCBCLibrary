@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -13,6 +14,7 @@ from ..security import get_current_user, require_roles
 
 
 router = APIRouter(prefix="/items", tags=["items"])
+logger = logging.getLogger(__name__)
 
 
 def get_or_404(db: Session, iid: int) -> Item:
@@ -28,14 +30,17 @@ def create_item(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Create item title=%s barcode=%s", payload.title, payload.barcode)
     item = Item(**payload.model_dump())
     db.add(item)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
+        logger.debug("Create item failed barcode=%s", payload.barcode)
         raise HTTPException(status_code=409, detail="Item barcode must be unique")
     db.refresh(item)
+    logger.debug("Created item id=%s", item.iid)
     return item
 
 # TODO: update route to handle use-cases for filtering by certain fields and sorting by criteria
@@ -48,6 +53,7 @@ def list_items(
     barcode: str | None = None,
     item_type: str | None = Query(default=None, alias="type"),
 ):
+    logger.debug("List items skip=%s limit=%s title=%s barcode=%s type=%s", skip, limit, title, barcode, item_type)
     query = db.query(Item)
     if title:
         query = query.filter(Item.title.contains(title))
@@ -60,6 +66,7 @@ def list_items(
 
 @router.get("/{iid}", response_model=ItemResponse)
 def get_item(iid: int, db: Session = Depends(get_db)):
+    logger.debug("Get item id=%s", iid)
     return get_or_404(db, iid)
 
 
@@ -70,6 +77,7 @@ def update_item(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Update item id=%s", iid)
     item = get_or_404(db, iid)
 
     updates = payload.model_dump(exclude_unset=True)
@@ -80,8 +88,10 @@ def update_item(
         db.commit()
     except IntegrityError:
         db.rollback()
+        logger.debug("Update item failed barcode conflict id=%s", iid)
         raise HTTPException(status_code=409, detail="Item barcode must be unique")
     db.refresh(item)
+    logger.debug("Updated item id=%s", item.iid)
     return item
 
 
@@ -91,6 +101,7 @@ def delete_item(
     db: Session = Depends(get_db),
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
+    logger.debug("Delete item id=%s", iid)
     item = get_or_404(db, iid)
     db.delete(item)
     db.commit()
