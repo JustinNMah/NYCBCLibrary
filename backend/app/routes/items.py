@@ -18,7 +18,7 @@ router = APIRouter(prefix="/items", tags=["items"])
 def get_or_404(db: Session, iid: int) -> Item:
     item = db.get(Item, iid)
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail=f"Item with id {iid} not found")
     return item
 
 

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/checked-out", tags=["checked-out"])
 def get_or_404(db: Session, iid: int) -> CheckedOut:
     checkout = db.get(CheckedOut, iid)
     if not checkout:
-        raise HTTPException(status_code=404, detail="Checkout not found")
+        raise HTTPException(status_code=404, detail=f"Checkout for item {iid} not found")
     return checkout
 
 
@@ -31,9 +31,9 @@ def create_checkout(
         raise HTTPException(status_code=400, detail="start_date must be <= due_date")
 
     if not db.get(Item, payload.iid):
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail=f"Item with id {payload.iid} not found")
     if not db.get(User, payload.uid):
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=f"User with id {payload.uid} not found")
     if db.get(CheckedOut, payload.iid):
         raise HTTPException(status_code=409, detail="Item is already checked out")
 
@@ -96,7 +96,7 @@ def update_checkout(
         raise HTTPException(status_code=400, detail="start_date must be <= due_date")
 
     if payload.uid is not None and not db.get(User, payload.uid):
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=f"User with id {payload.uid} not found")
 
     db.commit()
     db.refresh(checkout)

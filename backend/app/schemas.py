@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class ORMOutModel(BaseModel):
@@ -15,10 +15,15 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str = Field(min_length=8)
+
+
 class UserBase(BaseModel):
     name: str
-    phone: str | None = None
-    email: str | None = None
+    phone: Annotated[str | None, Field(pattern=r"^\+[1-9]\d{1,14}$")] = None
+    email: EmailStr | None = None
 
 
 class UserCreate(UserBase):
@@ -28,8 +33,8 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     name: str | None = None
     role: Literal["admin", "user", "librarian"] | None = None
-    phone: str | None = None
-    email: str | None = None
+    phone: Annotated[str | None, Field(pattern=r"^\+[1-9]\d{1,14}$")] = None
+    email: EmailStr | None = None
     password: str | None = Field(default=None, min_length=8)
 
 

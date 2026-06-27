@@ -17,7 +17,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 def get_or_404(db: Session, uid: int) -> User:
     user = db.get(User, uid)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=f"User with id {uid} not found")
     return user
 
 
