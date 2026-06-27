@@ -25,13 +25,10 @@ def get_or_404(db: Session, iid: int) -> CheckedOut:
 def create_checkout(
     payload: CheckedOutCreate,
     db: Session = Depends(get_db),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
+    _: Annotated[User, Depends(require_roles("admin", "librarian"))] = None,
 ):
     if payload.start_date > payload.due_date:
         raise HTTPException(status_code=400, detail="start_date must be <= due_date")
-
-    if current_user.role not in {"admin", "librarian"} and current_user.uid != payload.uid:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
 
     if not db.get(Item, payload.iid):
         raise HTTPException(status_code=404, detail="Item not found")
@@ -50,14 +47,35 @@ def create_checkout(
 @router.get("", response_model=list[CheckedOutResponse])
 def list_checkouts(
     db: Session = Depends(get_db),
+    _: Annotated[User, Depends(require_roles("admin", "librarian"))] = None,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
 ):
     return db.query(CheckedOut).offset(skip).limit(limit).all()
 
 
+@router.get("/me", response_model=list[CheckedOutResponse])
+def list_my_checkouts(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    return (
+        db.query(CheckedOut)
+        .filter(CheckedOut.uid == current_user.uid)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
 @router.get("/{iid}", response_model=CheckedOutResponse)
-def get_checkout(iid: int, db: Session = Depends(get_db)):
+def get_checkout(
+    iid: int,
+    db: Session = Depends(get_db),
+    _: Annotated[User, Depends(require_roles("admin"))] = None,
+):
     return get_or_404(db, iid)
 
 
@@ -66,7 +84,7 @@ def update_checkout(
     iid: int,
     payload: CheckedOutUpdate,
     db: Session = Depends(get_db),
-    _: Annotated[User, Depends(require_roles("librarian"))] = None,
+    _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     checkout = get_or_404(db, iid)
 
@@ -89,7 +107,7 @@ def update_checkout(
 def delete_checkout(
     iid: int,
     db: Session = Depends(get_db),
-    _: Annotated[User, Depends(require_roles("librarian"))] = None,
+    _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     checkout = get_or_404(db, iid)
     db.delete(checkout)

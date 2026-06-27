@@ -31,20 +31,18 @@ def list_users(
     return db.query(User).offset(skip).limit(limit).all()
 
 
+@router.get("/me", response_model=UserResponse)
+def read_me(current_user: Annotated[User, Depends(get_current_user)]):
+    return current_user
+
+
 @router.get("/{uid}", response_model=UserResponse)
 def get_user(
     uid: int,
     db: Session = Depends(get_db),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
+    _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
-    if current_user.role != "admin" and current_user.uid != uid:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
     return get_or_404(db, uid)
-
-
-@router.get("/me", response_model=UserResponse)
-def read_me(current_user: Annotated[User, Depends(get_current_user)]):
-    return current_user
 
 
 @router.put("/{uid}", response_model=UserResponse)
@@ -52,16 +50,10 @@ def update_user(
     uid: int,
     payload: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
+    _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
-    if current_user.role != "admin" and current_user.uid != uid:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-
     user = get_or_404(db, uid)
     updates = payload.model_dump(exclude_unset=True)
-
-    if current_user.role != "admin":
-        updates.pop("role", None)
 
     if "password" in updates:
         updates["hashed_password"] = get_password_hash(updates.pop("password"))

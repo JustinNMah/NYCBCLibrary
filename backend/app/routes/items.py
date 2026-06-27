@@ -26,7 +26,7 @@ def get_or_404(db: Session, iid: int) -> Item:
 def create_item(
     payload: ItemCreate,
     db: Session = Depends(get_db),
-    current_user: Annotated[User, Depends(require_roles("librarian"))] = None,
+    _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     item = Item(**payload.model_dump())
     db.add(item)
@@ -38,7 +38,7 @@ def create_item(
     db.refresh(item)
     return item
 
-
+# TODO: update route to handle use-cases for filtering by certain fields and sorting by criteria
 @router.get("", response_model=list[ItemResponse])
 def list_items(
     db: Session = Depends(get_db),
@@ -68,7 +68,7 @@ def update_item(
     iid: int,
     payload: ItemUpdate,
     db: Session = Depends(get_db),
-    current_user: Annotated[User, Depends(require_roles("librarian"))] = None,
+    _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     item = get_or_404(db, iid)
 
@@ -89,7 +89,7 @@ def update_item(
 def delete_item(
     iid: int,
     db: Session = Depends(get_db),
-    current_user: Annotated[User, Depends(require_roles("librarian"))] = None,
+    _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     item = get_or_404(db, iid)
     db.delete(item)
