@@ -18,3 +18,6 @@ source .venv/bin/activate   # mac/linux/wsl
 
 # install dependencies from lockfile
 uv sync
+
+# Start server
+fastapi dev
