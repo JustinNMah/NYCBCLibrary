@@ -4,10 +4,9 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..database import Session, get_db
+from ..db_helpers import db_create_user, db_set_user_session_token
 from ..models import User
 from ..schemas import LoginRequest, TokenResponse, UserCreate, UserResponse
 from ..security import authenticate_user, create_access_token, get_current_user, get_password_hash
@@ -20,23 +19,14 @@ logger = logging.getLogger(__name__)
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(payload: UserCreate, db: Session = Depends(get_db)):
     logger.debug("Register request for user=%s email=%s", payload.name, payload.email)
-    user = User(
+    user = db_create_user(
+        db,
         name=payload.name,
         role="user",
         phone=payload.phone,
         email=payload.email,
         hashed_password=get_password_hash(payload.password),
     )
-    db.add(user)
-
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        logger.debug("Register failed for user=%s", payload.name)
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
-
-    db.refresh(user)
     logger.debug("Registered user id=%s", user.uid)
     return user
 
@@ -54,8 +44,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         )
 
     access_token = create_access_token(subject=str(user.uid))
-    user.session_token = access_token
-    db.commit()
+    db_set_user_session_token(db, user.uid, access_token)
     logger.debug("Login successful for user id=%s", user.uid)
     return TokenResponse(access_token=access_token)
 
@@ -66,8 +55,7 @@ def logout(
     db: Session = Depends(get_db),
 ):
     logger.debug("Logout request for user id=%s", current_user.uid)
-    current_user.session_token = None
-    db.commit()
+    db_set_user_session_token(db, current_user.uid, None)
     return {"message": "Logged out"}
 
 

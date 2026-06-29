@@ -4,9 +4,9 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..database import Session, get_db
+from ..db_helpers import db_delete_user, db_get_user_by_uid, db_list_users, db_update_user
 from ..models import User
 from ..schemas import UserResponse, UserUpdate
 from ..security import get_current_user, get_password_hash, require_roles
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_or_404(db: Session, uid: int) -> User:
-    user = db.get(User, uid)
+    user = db_get_user_by_uid(db, uid)
     if not user:
         raise HTTPException(status_code=404, detail=f"User with id {uid} not found")
     return user
@@ -31,7 +31,7 @@ def list_users(
     limit: int = Query(default=100, ge=1, le=500),
 ):
     logger.debug("List users skip=%s limit=%s", skip, limit)
-    return db.query(User).offset(skip).limit(limit).all()
+    return db_list_users(db, skip=skip, limit=limit)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -58,18 +58,13 @@ def update_user(
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     logger.debug("Update user id=%s", uid)
-    user = get_or_404(db, uid)
+    get_or_404(db, uid)
     updates = payload.model_dump(exclude_unset=True)
 
     if "password" in updates:
         updates["hashed_password"] = get_password_hash(updates.pop("password"))
 
-    for field, value in updates.items():
-        setattr(user, field, value)
-
-    db.commit()
-    db.refresh(user)
-    return user
+    return db_update_user(db, uid, updates)
 
 
 @router.delete("/{uid}", status_code=status.HTTP_204_NO_CONTENT)
@@ -79,7 +74,6 @@ def delete_user(
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     logger.debug("Delete user id=%s", uid)
-    user = get_or_404(db, uid)
-    db.delete(user)
-    db.commit()
+    get_or_404(db, uid)
+    db_delete_user(db, uid)
     return None

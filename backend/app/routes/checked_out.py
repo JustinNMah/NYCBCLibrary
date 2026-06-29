@@ -4,10 +4,19 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import CheckedOut, Item, User
+from ..database import Session, get_db
+from ..db_helpers import (
+    db_create_checkout,
+    db_delete_checkout,
+    db_get_checkout_by_iid,
+    db_get_item_by_iid,
+    db_get_user_by_uid,
+    db_list_checkouts,
+    db_list_my_checkouts,
+    db_update_checkout,
+)
+from ..models import CheckedOut, User
 from ..schemas import CheckedOutCreate, CheckedOutResponse, CheckedOutUpdate
 from ..security import get_current_user, require_roles
 
@@ -17,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_or_404(db: Session, iid: int) -> CheckedOut:
-    checkout = db.get(CheckedOut, iid)
+    checkout = db_get_checkout_by_iid(db, iid)
     if not checkout:
         raise HTTPException(status_code=404, detail=f"Checkout for item {iid} not found")
     return checkout
@@ -33,17 +42,14 @@ def create_checkout(
     if payload.start_date > payload.due_date:
         raise HTTPException(status_code=400, detail="start_date must be <= due_date")
 
-    if not db.get(Item, payload.iid):
+    if not db_get_item_by_iid(db, payload.iid):
         raise HTTPException(status_code=404, detail=f"Item with id {payload.iid} not found")
-    if not db.get(User, payload.uid):
+    if not db_get_user_by_uid(db, payload.uid):
         raise HTTPException(status_code=404, detail=f"User with id {payload.uid} not found")
-    if db.get(CheckedOut, payload.iid):
+    if db_get_checkout_by_iid(db, payload.iid):
         raise HTTPException(status_code=409, detail="Item is already checked out")
 
-    checkout = CheckedOut(**payload.model_dump())
-    db.add(checkout)
-    db.commit()
-    db.refresh(checkout)
+    checkout = db_create_checkout(db, **payload.model_dump())
     logger.debug("Created checkout iid=%s uid=%s", checkout.iid, checkout.uid)
     return checkout
 
@@ -56,7 +62,7 @@ def list_checkouts(
     limit: int = Query(default=100, ge=1, le=500),
 ):
     logger.debug("List checkouts skip=%s limit=%s", skip, limit)
-    return db.query(CheckedOut).offset(skip).limit(limit).all()
+    return db_list_checkouts(db, skip=skip, limit=limit)
 
 
 @router.get("/me", response_model=list[CheckedOutResponse])
@@ -67,13 +73,7 @@ def list_my_checkouts(
     limit: int = Query(default=100, ge=1, le=500),
 ):
     logger.debug("List my checkouts user_id=%s skip=%s limit=%s", current_user.uid, skip, limit)
-    return (
-        db.query(CheckedOut)
-        .filter(CheckedOut.uid == current_user.uid)
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    return db_list_my_checkouts(db, uid=current_user.uid, skip=skip, limit=limit)
 
 
 @router.get("/{iid}", response_model=CheckedOutResponse)
@@ -94,20 +94,16 @@ def update_checkout(
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     logger.debug("Update checkout iid=%s", iid)
-    checkout = get_or_404(db, iid)
-
     updates = payload.model_dump(exclude_unset=True)
-    for field, value in updates.items():
-        setattr(checkout, field, value)
+    get_or_404(db, iid)
 
-    if checkout.start_date > checkout.due_date:
+    if updates.get("start_date") is not None and updates.get("due_date") is not None and updates["start_date"] > updates["due_date"]:
         raise HTTPException(status_code=400, detail="start_date must be <= due_date")
 
-    if payload.uid is not None and not db.get(User, payload.uid):
+    if payload.uid is not None and not db_get_user_by_uid(db, payload.uid):
         raise HTTPException(status_code=404, detail=f"User with id {payload.uid} not found")
 
-    db.commit()
-    db.refresh(checkout)
+    checkout = db_update_checkout(db, iid, updates)
     logger.debug("Updated checkout iid=%s", checkout.iid)
     return checkout
 
@@ -119,7 +115,6 @@ def delete_checkout(
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     logger.debug("Delete checkout iid=%s", iid)
-    checkout = get_or_404(db, iid)
-    db.delete(checkout)
-    db.commit()
+    get_or_404(db, iid)
+    db_delete_checkout(db, iid)
     return None
