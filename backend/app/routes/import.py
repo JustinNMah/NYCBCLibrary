@@ -50,7 +50,7 @@ async def import_csv(file: UploadFile, db: Session = Depends(get_db)):
             checkout = {
                 iid: iid,
                 uid: 0,
-                start_date: None
+                start_date: None,
                 due_date: None
             }
             db_create_checkout(db, **checkout)
