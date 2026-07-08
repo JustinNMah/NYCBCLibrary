@@ -1,5 +1,12 @@
 ## HOW TO RUN FRONTEND:
+
 Run the following commands:
+
+Run this first if you don't have bun (Linux/MacOS)
+curl -fsSL https://bun.com/install | bash
+
+(Windows)
+powershell -c "irm bun.sh/install.ps1|iex"
 
 ```
 cd frontend

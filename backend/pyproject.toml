@@ -8,4 +8,5 @@ dependencies = [
     "fastapi[standard]>=0.138.0",
     "passlib>=1.7.4",
     "PyJWT>=2.10.1",
+    "python-multipart>=0.0.32",
 ]

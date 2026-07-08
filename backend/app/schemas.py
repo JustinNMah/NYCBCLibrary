@@ -87,3 +87,6 @@ class CheckedOutResponse(ORMOutModel):
     uid: int
     start_date: date
     due_date: date
+
+class ImportCSVResponse(BaseModel):
+    status: "Success" | "Failure"

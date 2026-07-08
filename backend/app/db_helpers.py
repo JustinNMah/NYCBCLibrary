@@ -55,8 +55,35 @@ def db_create_item(
     author: str | None,
     place_publisher: str | None,
     language_location: str | None,
-) -> Item:
-    _not_implemented("create_item")
+) -> int:
+    cur = db.cursor()
+
+    # What do we want to do in the case that the barcode is the same?
+
+    iid = cur.execute(
+        """
+        INSERT INTO items (
+            barcode,
+            type,
+            title,
+            author,
+            place_publisher,
+            language_location
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        RETURNING iid
+        """,
+        (
+            barcode,
+            type,
+            title,
+            author,
+            place_publisher,
+            language_location,
+        ),
+    ).fetchone()[0]
+
+    return iid
 
 
 def db_list_items(
@@ -88,11 +115,40 @@ def db_create_checkout(
     *,
     iid: int,
     uid: int,
-    start_date: date,
-    due_date: date,
+    start_date: date | None,
+    due_date: date | None,
 ) -> CheckedOut:
-    _not_implemented("create_checkout")
+    cur = db.cursor()
+    
+    checkout = cur.execute(
+        """
+        INSERT INTO CheckedOut (
+            iid,
+            uid,
+            start_date,
+            due_date
+        )
+        VALUES (?, ?, ?, COALESCE(?, date('now', '+1 month')))
+        RETURNING
+            iid,
+            uid,
+            start_date,
+            due_date
+        """,
+        (
+            iid,
+            uid,
+            start_date,
+            due_date,
+        ),
+    ).fetchone()
 
+    return CheckedOut(
+        iid=checkout[0],
+        uid=checkout[1],
+        start_date=checkout[2],
+        due_date=checkout[3],
+    )
 
 def db_list_checkouts(db: Session, *, skip: int = 0, limit: int = 100) -> list[CheckedOut]:
     _not_implemented("list_checkouts")
@@ -118,3 +174,6 @@ def db_update_checkout(db: Session, iid: int, updates: dict[str, object]) -> Che
 
 def db_delete_checkout(db: Session, iid: int) -> None:
     _not_implemented("delete_checkout")
+
+def db_commit(db: Session) -> None:
+    db.commit()
