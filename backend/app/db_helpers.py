@@ -26,7 +26,6 @@ def db_create_user(
     """
     params  = (name, role, phone, email, hashed_password)
     res = db.execute(query, params).fetchone()
-    res = tuple(res)
     db.commit()
     return User(*tuple(res))
 
@@ -47,7 +46,6 @@ def db_get_user_by_uid(db: Session, uid: int) -> User | None:
     params  = (uid,)
     res = db.execute(query, params).fetchone()
     if res:
-        res = tuple(res)
         return User(*tuple(res))
     return None
 
@@ -62,7 +60,6 @@ def db_update_user(db: Session, uid: int, updates: dict[str, object]) -> User:
             + " WHERE uid=? RETURNING *")
     params  = list(updates.values()) + [uid]
     res = db.execute(query, params).fetchone()
-    res = tuple(res)
     db.commit()
     return User(*tuple(res))
 
@@ -83,7 +80,6 @@ def db_get_user_by_token(db: Session, token: str) -> User | None:
     params  = (token,)
     res = db.execute(query, params).fetchone()
     if res:
-        res = tuple(res)
         return User(*tuple(res))
     return None
 
@@ -106,12 +102,8 @@ def db_create_item(
     author: str | None,
     place_publisher: str | None,
     language_location: str | None,
-) -> int:
-    cur = db.cursor()
-
-    # What do we want to do in the case that the barcode is the same?
-
-    iid = cur.execute(
+) -> Item:
+    item = db.execute(
         """
         INSERT INTO items (
             barcode,
@@ -122,7 +114,7 @@ def db_create_item(
             language_location
         )
         VALUES (?, ?, ?, ?, ?, ?)
-        RETURNING iid
+        RETURNING iid;
         """,
         (
             barcode,
@@ -132,9 +124,10 @@ def db_create_item(
             place_publisher,
             language_location,
         ),
-    ).fetchone()[0]
+    ).fetchone()
+    db.commit()
 
-    return iid
+    return Item(*tuple(item))
 
 
 def db_list_items(
@@ -146,19 +139,54 @@ def db_list_items(
     barcode: str | None = None,
     item_type: str | None = None,
 ) -> list[Item]:
-    _not_implemented("list_items")
+    query = "SELECT * FROM Items WHERE 1=1"
+    params = ()
+    if title:
+        query += " AND title=?"
+        params += (title,)
+    if barcode:
+        query += " AND barcode=?"
+        params += (barcode,)
+    if item_type:
+        query += " AND item_type=?"
+        params += (item_type,)
+    query += " LIMIT ? OFFSET ?;"
+    params += (limit, skip)
+    res = db.execute(query, params).fetchall()
+    return [Item(*tuple(row)) for row in res]
 
 
 def db_get_item_by_iid(db: Session, iid: int) -> Item | None:
-    _not_implemented("get_item_by_iid")
+    query = """
+    SELECT * FROM Items WHERE iid=?;
+    """
+    params  = (iid,)
+    res = db.execute(query, params).fetchone()
+    if res:
+        return Item(*tuple(res))
+    return None
 
 
 def db_update_item(db: Session, iid: int, updates: dict[str, object]) -> Item:
-    _not_implemented("update_item")
+    if not updates:
+        return db_get_item_by_iid(db, iid)
+    
+    query = ("UPDATE Items SET "
+            + ','.join([f"{k}=?" for k in updates.keys()])
+            + " WHERE iid=? RETURNING *")
+    params  = list(updates.values()) + [iid]
+    res = db.execute(query, params).fetchone()
+    db.commit()
+    return Item(*tuple(res))
 
 
 def db_delete_item(db: Session, iid: int) -> None:
-    _not_implemented("delete_item")
+    query = """
+    DELETE FROM Items WHERE iid=?;
+    """
+    params  = (iid,)
+    db.execute(query, params)
+    db.commit()
 
 
 def db_create_checkout(

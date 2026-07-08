@@ -10,7 +10,7 @@ from ..db_helpers import db_create_item, db_delete_item, db_get_item_by_iid, db_
 from ..models import Item, User
 from ..schemas import ItemCreate, ItemResponse, ItemUpdate
 from ..security import get_current_user, require_roles
-
+from sqlite3 import IntegrityError
 
 router = APIRouter(prefix="/items", tags=["items"])
 logger = logging.getLogger(__name__)
@@ -30,9 +30,14 @@ def create_item(
     _: Annotated[User, Depends(require_roles("admin"))] = None,
 ):
     logger.debug("Create item title=%s barcode=%s", payload.title, payload.barcode)
-    item = db_create_item(db, **payload.model_dump())
-    logger.debug("Created item id=%s", item.iid)
-    return item
+    try:
+        item = db_create_item(db, **payload.model_dump())
+        logger.debug("Created item id=%s", item.iid)
+        return item
+    except IntegrityError as e:
+        # if barcode violates unique constraint, throw a 400 exception
+        raise HTTPException(status_code=400, detail=f"Request body {{{payload}}} raised exception: {str(e)}")
+    
 
 # TODO: update route to handle use-cases for filtering by certain fields and sorting by criteria
 @router.get("", response_model=list[ItemResponse])

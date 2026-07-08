@@ -89,4 +89,4 @@ class CheckedOutResponse(ORMOutModel):
     due_date: date
 
 class ImportCSVResponse(BaseModel):
-    status: "Success" | "Failure"
+    status: Literal["Success", "Failure"]
