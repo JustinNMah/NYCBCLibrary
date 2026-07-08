@@ -37,7 +37,8 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         logger.debug("404 for path %s", request.url.path)
         return JSONResponse(
             status_code=404,
-            content={"detail": f"Route not found: {request.url.path}"},
+            content={"detail": f"Route not found: {request.url.path}",
+                     "exception_detail": exc.detail},
         )
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 

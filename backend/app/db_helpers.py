@@ -233,8 +233,12 @@ def db_create_checkout(
     return CheckedOut(**dict(checkout))
 
 def db_list_checkouts(db: Session, *, skip: int = 0, limit: int = 100) -> list[CheckedOut]:
-    _not_implemented("list_checkouts")
-
+    query = """
+    SELECT * FROM CheckedOut LIMIT ? OFFSET ?;
+    """
+    params  = (limit, skip)
+    res = db.execute(query, params).fetchall()
+    return [CheckedOut(**dict(row)) for row in res]
 
 def db_list_my_checkouts(
     db: Session,
@@ -243,19 +247,45 @@ def db_list_my_checkouts(
     skip: int = 0,
     limit: int = 100,
 ) -> list[CheckedOut]:
-    _not_implemented("list_my_checkouts")
+    query = """
+    SELECT * FROM CheckedOut WHERE uid=? LIMIT ? OFFSET ?;
+    """
+    params  = (uid, limit, skip)
+    res = db.execute(query, params).fetchall()
+    return [CheckedOut(**dict(row)) for row in res]
 
 
 def db_get_checkout_by_iid(db: Session, iid: int) -> CheckedOut | None:
-    _not_implemented("get_checkout_by_iid")
+    query = """
+    SELECT * FROM CheckedOut WHERE iid = ?;
+    """
+    params  = (iid,)
+    res = db.execute(query, params).fetchone()
+    if res:
+        return CheckedOut(**dict(res))
+    return None
 
 
 def db_update_checkout(db: Session, iid: int, updates: dict[str, object]) -> CheckedOut:
-    _not_implemented("update_checkout")
+    if not updates:
+        return db_get_checkout_by_iid(db, iid)
+    
+    query = ("UPDATE CheckedOut SET "
+            + ','.join([f"{k}=?" for k in updates.keys()])
+            + " WHERE iid=? RETURNING *")
+    params  = list(updates.values()) + [iid]
+    res = db.execute(query, params).fetchone()
+    db.commit()
+    return CheckedOut(**dict(res))
 
 
 def db_delete_checkout(db: Session, iid: int) -> None:
-    _not_implemented("delete_checkout")
+    query = """
+    DELETE FROM CheckedOut WHERE iid=?;
+    """
+    params  = (iid,)
+    db.execute(query, params)
+    db.commit()
 
 def db_commit(db: Session) -> None:
     db.commit()

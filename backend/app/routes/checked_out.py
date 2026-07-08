@@ -19,7 +19,7 @@ from ..db_helpers import (
 from ..models import CheckedOut, User
 from ..schemas import CheckedOutCreate, CheckedOutResponse, CheckedOutUpdate
 from ..security import get_current_user, require_roles
-
+from sqlite3 import IntegrityError
 
 router = APIRouter(prefix="/checked-out", tags=["checked-out"])
 logger = logging.getLogger(__name__)
@@ -39,19 +39,24 @@ def create_checkout(
     _: Annotated[User, Depends(require_roles("admin", "librarian"))] = None,
 ):
     logger.debug("Create checkout iid=%s uid=%s", payload.iid, payload.uid)
-    if payload.start_date > payload.due_date:
-        raise HTTPException(status_code=400, detail="start_date must be <= due_date")
+    
+    # Don't need this part as SQL automatically throws error when constraints are violated
+    # if payload.start_date > payload.due_date:
+    #     raise HTTPException(status_code=400, detail="start_date must be <= due_date")
+    # if not db_get_item_by_iid(db, payload.iid):
+    #     raise HTTPException(status_code=404, detail=f"Item with id {payload.iid} not found")
+    # if not db_get_user_by_uid(db, payload.uid):
+    #     raise HTTPException(status_code=404, detail=f"User with id {payload.uid} not found")
+    # if db_get_checkout_by_iid(db, payload.iid):
+    #     raise HTTPException(status_code=409, detail="Item is already checked out")
 
-    if not db_get_item_by_iid(db, payload.iid):
-        raise HTTPException(status_code=404, detail=f"Item with id {payload.iid} not found")
-    if not db_get_user_by_uid(db, payload.uid):
-        raise HTTPException(status_code=404, detail=f"User with id {payload.uid} not found")
-    if db_get_checkout_by_iid(db, payload.iid):
-        raise HTTPException(status_code=409, detail="Item is already checked out")
-
-    checkout = db_create_checkout(db, **payload.model_dump())
-    logger.debug("Created checkout iid=%s uid=%s", checkout.iid, checkout.uid)
-    return checkout
+    try:
+        checkout = db_create_checkout(db, **payload.model_dump())
+        logger.debug("Created checkout iid=%s uid=%s", checkout.iid, checkout.uid)
+        return checkout
+    except IntegrityError as e:
+        # catch when table constraints are violated
+        raise HTTPException(status_code=400, detail=f"Request body {{{payload}}} raised exception: {str(e)}")
 
 
 @router.get("", response_model=list[CheckedOutResponse])
