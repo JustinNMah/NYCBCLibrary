@@ -22,7 +22,7 @@ class LoginRequest(BaseModel):
 
 class UserBase(BaseModel):
     name: str
-    phone: Annotated[str | None, Field(pattern=r"^\+[1-9]\d{1,14}$")] = None
+    phone: Annotated[str | None, Field(pattern=r"^[1-9]\d{1,14}$")] = None
     email: EmailStr | None = None
 
 
@@ -33,7 +33,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     name: str | None = None
     role: Literal["admin", "user", "librarian"] | None = None
-    phone: Annotated[str | None, Field(pattern=r"^\+[1-9]\d{1,14}$")] = None
+    phone: Annotated[str | None, Field(pattern=r"^[1-9]\d{1,14}$")] = None
     email: EmailStr | None = None
     password: str | None = Field(default=None, min_length=8)
 

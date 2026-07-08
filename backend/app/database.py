@@ -29,6 +29,9 @@ def get_db() -> Generator[Session, None, None]:
     conn.row_factory = sqlite3.Row
     try:
         yield conn
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

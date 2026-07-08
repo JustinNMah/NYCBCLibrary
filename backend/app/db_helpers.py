@@ -19,31 +19,82 @@ def db_create_user(
     email: str | None,
     hashed_password: str,
 ) -> User:
-    _not_implemented("create_user")
+    query = """
+    INSERT INTO Users(name, role, phone, email, hashed_password) 
+    VALUES (?, ?, ?, ?, ?)
+    RETURNING *;
+    """
+    params  = (name, role, phone, email, hashed_password)
+    res = db.execute(query, params).fetchone()
+    res = tuple(res)
+    db.commit()
+    return User(*tuple(res))
 
 
 def db_list_users(db: Session, *, skip: int = 0, limit: int = 100) -> list[User]:
-    _not_implemented("list_users")
+    query = """
+    SELECT * FROM Users LIMIT ? OFFSET ?;
+    """
+    params  = (limit, skip)
+    res = db.execute(query, params).fetchall()
+    return [User(*tuple(row)) for row in res]
 
 
 def db_get_user_by_uid(db: Session, uid: int) -> User | None:
-    _not_implemented("get_user_by_uid")
+    query = """
+    SELECT * FROM Users WHERE uid=?;
+    """
+    params  = (uid,)
+    res = db.execute(query, params).fetchone()
+    if res:
+        res = tuple(res)
+        return User(*tuple(res))
+    return None
 
 
 def db_update_user(db: Session, uid: int, updates: dict[str, object]) -> User:
-    _not_implemented("update_user")
+    # if no updates, the user is unchanged
+    if not updates:
+        return db_get_user_by_uid(db, uid)
+    
+    query = ("UPDATE Users SET "
+            + ','.join([f"{k}=?" for k in updates.keys()])
+            + " WHERE uid=? RETURNING *")
+    params  = list(updates.values()) + [uid]
+    res = db.execute(query, params).fetchone()
+    res = tuple(res)
+    db.commit()
+    return User(*tuple(res))
 
 
 def db_delete_user(db: Session, uid: int) -> None:
-    _not_implemented("delete_user")
+    query = """
+    DELETE FROM Users WHERE uid = ?;
+    """
+    params  = (uid,)
+    db.execute(query, params)
+    db.commit()
 
 
 def db_get_user_by_token(db: Session, token: str) -> User | None:
-    _not_implemented("get_user_by_token")
-
+    query = """
+    SELECT * FROM Users WHERE session_token  = ? LIMIT 1;
+    """
+    params  = (token,)
+    res = db.execute(query, params).fetchone()
+    if res:
+        res = tuple(res)
+        return User(*tuple(res))
+    return None
 
 def db_set_user_session_token(db: Session, uid: int, token: str | None) -> None:
-    _not_implemented("set_user_session_token")
+    query = """
+    UPDATE Users SET session_token = ? WHERE uid = ?;
+    """
+    params  = (token, uid)
+    db.execute(query, params)
+    db.commit()
+
 
 
 def db_create_item(
