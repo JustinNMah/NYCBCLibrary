@@ -33,27 +33,29 @@ async def import_csv(file: UploadFile, db: Session = Depends(get_db)):
     decoded = content.decode("utf-8")
 
     reader = csv.DictReader(StringIO(decoded))
+    cur = db.cursor() # single cursor to reduce overhead
 
     for row in reader:
         item = (
             {
-                title: row.get("Title"),
-                author: row.get("Author"),
-                barcode: row.get("Bar-Code"),
-                type: row.get("Type"),
-                place_publisher: row.get("Place, Publisher"),
-                language_location: row.get("Language/Location"),
+                "title": row.get("Title"),
+                "author": row.get("Author"),
+                "barcode": row.get("Bar-Code"),
+                "type": row.get("Type"),
+                "place_publisher": row.get("Place, Publisher"),
+                "language_location": row.get("Language/Location"),
             }
         )
-        iid = db_create_item(db, **item)
+        item = db_create_item(db, cursor=cur, **item)
+        iid = item["iid"]
         if row.get("Checked Out"):
             checkout = {
-                iid: iid,
-                uid: 0,
-                start_date: None,
-                due_date: None
+                "iid": iid,
+                "uid": 0,
+                "start_date": None,
+                "due_date": None
             }
-            db_create_checkout(db, **checkout)
+            db_create_checkout(db, cursor=cur, **checkout)
         
     db_commit(db)
 

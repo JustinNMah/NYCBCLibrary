@@ -27,7 +27,7 @@ def db_create_user(
     params  = (name, role, phone, email, hashed_password)
     res = db.execute(query, params).fetchone()
     db.commit()
-    return User(*tuple(res))
+    return User(**dict(res))
 
 
 def db_list_users(db: Session, *, skip: int = 0, limit: int = 100) -> list[User]:
@@ -36,7 +36,7 @@ def db_list_users(db: Session, *, skip: int = 0, limit: int = 100) -> list[User]
     """
     params  = (limit, skip)
     res = db.execute(query, params).fetchall()
-    return [User(*tuple(row)) for row in res]
+    return [User(**dict(row)) for row in res]
 
 
 def db_get_user_by_uid(db: Session, uid: int) -> User | None:
@@ -46,7 +46,7 @@ def db_get_user_by_uid(db: Session, uid: int) -> User | None:
     params  = (uid,)
     res = db.execute(query, params).fetchone()
     if res:
-        return User(*tuple(res))
+        return User(**dict(res))
     return None
 
 
@@ -61,7 +61,7 @@ def db_update_user(db: Session, uid: int, updates: dict[str, object]) -> User:
     params  = list(updates.values()) + [uid]
     res = db.execute(query, params).fetchone()
     db.commit()
-    return User(*tuple(res))
+    return User(**dict(res))
 
 
 def db_delete_user(db: Session, uid: int) -> None:
@@ -80,7 +80,7 @@ def db_get_user_by_token(db: Session, token: str) -> User | None:
     params  = (token,)
     res = db.execute(query, params).fetchone()
     if res:
-        return User(*tuple(res))
+        return User(**dict(res))
     return None
 
 def db_set_user_session_token(db: Session, uid: int, token: str | None) -> None:
@@ -96,6 +96,7 @@ def db_set_user_session_token(db: Session, uid: int, token: str | None) -> None:
 def db_create_item(
     db: Session,
     *,
+    cursor = None, # optionally can use a cursor object instead of db and commit outside of this function
     barcode: str | None,
     type: str | None,
     title: str | None,
@@ -103,7 +104,8 @@ def db_create_item(
     place_publisher: str | None,
     language_location: str | None,
 ) -> Item:
-    item = db.execute(
+    executor = cursor if cursor else db
+    item = executor.execute(
         """
         INSERT INTO items (
             barcode,
@@ -114,7 +116,7 @@ def db_create_item(
             language_location
         )
         VALUES (?, ?, ?, ?, ?, ?)
-        RETURNING iid;
+        RETURNING *;
         """,
         (
             barcode,
@@ -125,9 +127,11 @@ def db_create_item(
             language_location,
         ),
     ).fetchone()
-    db.commit()
 
-    return Item(*tuple(item))
+    if cursor is None:
+        db.commit()
+
+    return Item(**dict(item))
 
 
 def db_list_items(
@@ -153,7 +157,7 @@ def db_list_items(
     query += " LIMIT ? OFFSET ?;"
     params += (limit, skip)
     res = db.execute(query, params).fetchall()
-    return [Item(*tuple(row)) for row in res]
+    return [Item(**dict(row)) for row in res]
 
 
 def db_get_item_by_iid(db: Session, iid: int) -> Item | None:
@@ -163,7 +167,7 @@ def db_get_item_by_iid(db: Session, iid: int) -> Item | None:
     params  = (iid,)
     res = db.execute(query, params).fetchone()
     if res:
-        return Item(*tuple(res))
+        return Item(**dict(res))
     return None
 
 
@@ -177,7 +181,7 @@ def db_update_item(db: Session, iid: int, updates: dict[str, object]) -> Item:
     params  = list(updates.values()) + [iid]
     res = db.execute(query, params).fetchone()
     db.commit()
-    return Item(*tuple(res))
+    return Item(**dict(res))
 
 
 def db_delete_item(db: Session, iid: int) -> None:
@@ -192,14 +196,15 @@ def db_delete_item(db: Session, iid: int) -> None:
 def db_create_checkout(
     db: Session,
     *,
+    cursor = None,
     iid: int,
     uid: int,
     start_date: date | None,
     due_date: date | None,
 ) -> CheckedOut:
-    cur = db.cursor()
+    executor = cursor if cursor else db
     
-    checkout = cur.execute(
+    checkout = executor.execute(
         """
         INSERT INTO CheckedOut (
             iid,
@@ -222,12 +227,10 @@ def db_create_checkout(
         ),
     ).fetchone()
 
-    return CheckedOut(
-        iid=checkout[0],
-        uid=checkout[1],
-        start_date=checkout[2],
-        due_date=checkout[3],
-    )
+    if cursor is None:
+        db.commit()
+
+    return CheckedOut(**dict(checkout))
 
 def db_list_checkouts(db: Session, *, skip: int = 0, limit: int = 100) -> list[CheckedOut]:
     _not_implemented("list_checkouts")
